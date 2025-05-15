@@ -1,0 +1,20 @@
+# docker run -p8080:8080 -p35729:35729 --network=docker_default -v "$(pwd)/CarRental:/app" car-rental
+
+version: '3.8'
+
+services:
+  car-rental:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "35729:35729"
+    networks:
+      - docker_default
+    volumes:
+      - ./CarRental:/app
+
+networks:
+  docker_default:
+    external: true

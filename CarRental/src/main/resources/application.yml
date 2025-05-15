@@ -1,0 +1,9 @@
+spring:
+  data:
+    mongodb:
+      authentication-database: admin
+      username: root
+      password: example
+      database: dapro_01
+      port: 27017
+      host: docker-mongo-1
