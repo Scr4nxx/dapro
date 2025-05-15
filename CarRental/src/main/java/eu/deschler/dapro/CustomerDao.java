@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import java.util.Objects;
+import java.util.Optional;
 
 @Component
 public class CustomerDao {
@@ -92,5 +93,10 @@ public class CustomerDao {
 
     public void setFilter(String filter) {
         this.filter = filter;
+    }
+
+    CustomerEntity findByCustomerNo(Integer customerNo) {
+        Optional<CustomerEntity> customerOptional = customerRepository.findByCustomerNo(customerNo);
+        return customerOptional.orElse(null);
     }
 }
