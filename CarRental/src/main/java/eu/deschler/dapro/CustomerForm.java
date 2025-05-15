@@ -17,6 +17,7 @@ public class CustomerForm extends FormLayout {
     private final CustomerView customerView;
     private final CustomerDao dao;
 
+    private final TextField customerNo = new TextField("Kundennummer");
     private final TextField firstName = new TextField("Vorname");
     private final TextField lastName = new TextField("Name");
     private final DatePicker dateOfBirth = new DatePicker("Geburtsdatum");
@@ -31,13 +32,14 @@ public class CustomerForm extends FormLayout {
         this.customerView = customerView;
         this.dao = dao;
 
+        customerNo.setReadOnly(true); // Anzeige, aber nicht editierbar
         licenseClassGroup.setLabel("Führerscheinklassen");
         licenseClassGroup.setItems("A", "B", "C", "D");
 
         HorizontalLayout buttons = new HorizontalLayout(save, delete);
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        add(firstName, lastName, dateOfBirth, licenseClassGroup, buttons);
+        add(customerNo, firstName, lastName, dateOfBirth, licenseClassGroup, buttons);
 
         // Automatisches Binding, außer customerNo und licenseClassGroup
         binder.bindInstanceFields(this);
