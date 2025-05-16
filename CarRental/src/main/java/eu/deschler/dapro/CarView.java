@@ -139,6 +139,7 @@ public class CarView extends VerticalLayout {
             CarModelEntity selectedCarModel = e.getItem();
             if (selectedCarModel != null) {
                 form = new CarReservationForm(reservationDao, carDao, customerDao);
+                add(form);
                 form.openDialog(selectedCarModel);
             }
         });
