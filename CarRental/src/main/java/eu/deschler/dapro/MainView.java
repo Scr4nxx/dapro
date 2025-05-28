@@ -38,15 +38,15 @@ public class MainView extends VerticalLayout{
         tabMap.put(tabReservations, reservationView);
         tabs.setWidthFull();
         tabs.addSelectedChangeListener(
-                e -> {
-                    customerView.setVisible(false);
-                    carView.setVisible(false);
-                    reservationView.setVisible(false);
-                    Component c = tabMap.get(e.getSelectedTab());
-                    if (c!=null) {
-                        c.setVisible(true);
-                    }
+            e -> {
+                customerView.setVisible(false);
+                carView.setVisible(false);
+                reservationView.setVisible(false);
+                Component c = tabMap.get(e.getSelectedTab());
+                if (c!=null) {
+                    c.setVisible(true);
                 }
+            }
         );
         tabs.setSelectedTab(tabCustomers);
         carView.setVisible(false);

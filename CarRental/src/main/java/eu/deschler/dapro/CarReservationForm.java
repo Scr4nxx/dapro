@@ -47,7 +47,7 @@ public class CarReservationForm  extends FormLayout {
             throw new CustomerNotFoundException("Kunde nicht gefunden.");
         }
 
-        List<String> licenses = customer.getLicenseClasses();
+        Set<String> licenses = customer.getDrivingLicenseClasses();
         String requiredLicense = carModel.getFuehrerschein();
         if (requiredLicense == null || !licenses.contains(requiredLicense)) {
             throw new DriverLicenseNotValidException("Führerschein nicht gültig für dieses Modell.");
@@ -70,21 +70,21 @@ public class CarReservationForm  extends FormLayout {
         this.carDao = carDao;
         this.customerDao = customerDao;
 
-        DatePicker startDatumPicker = new DatePicker("Startdatum");
-        DatePicker endDatumPicker = new DatePicker("Enddatum");
-        NumberField kundenNummerField = new NumberField("Kundennummer");
-
+        DatePicker startDatumPicker = new DatePicker("Startdatum", e -> {
+            LocalDateTime startDate = e.getValue().atStartOfDay();
+            reservation.setBeginn(startDate);
+        });
+        DatePicker endDatumPicker = new DatePicker("Enddatum", e -> {
+            LocalDateTime endDate = e.getValue().atTime(23, 59, 59);
+            reservation.setEnde(endDate);
+        });
+        NumberField kundenNummerField = new NumberField("Kundennummer", e -> {
+            int kundeId = e.getValue().intValue();
+            reservation.setKundeID(kundeId);
+        });
         Button reservierenButton = new Button("Reservieren", e -> {
             try {
-                Integer kundenNummer = kundenNummerField.getValue() != null ? kundenNummerField.getValue().intValue() : null;
-                LocalDateTime beginn = startDatumPicker.getValue() != null ? startDatumPicker.getValue().atStartOfDay() : null;
-                LocalDateTime ende = endDatumPicker.getValue() != null ? endDatumPicker.getValue().atTime(23, 59, 59) : null;
-
-                if (isReservationPossible(carModel, kundenNummer, beginn, ende)) {
-                    reservation.setBeginn(beginn);
-                    reservation.setEnde(ende);
-                    reservation.setKundeID(kundenNummer);
-
+                if (isReservationPossible(carModel, reservation.getKundeID(), reservation.getBeginn(), reservation.getEnde())) {
                     this.reservationDao.add(reservation);
                     dialog.close();
                     openSuccessDialog("Die Reservierung wurde erfolgreich abgeschlossen.");
@@ -104,7 +104,6 @@ public class CarReservationForm  extends FormLayout {
                 log.error(dlnve.getMessage());
             }
         });
-
 
         VerticalLayout dialogContent = new VerticalLayout(label, startDatumPicker, endDatumPicker, kundenNummerField, reservierenButton);
         dialog.add(dialogContent);

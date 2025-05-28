@@ -1,13 +1,14 @@
 package eu.deschler.dapro;
 
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
-
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
 
 @Document(collection = "customers")
 public class CustomerEntity {
@@ -23,8 +24,8 @@ public class CustomerEntity {
     private Contact contact;
     @Field(name = "date_of_birth")
     private LocalDate dateOfBirth;
-    @Field(name = "license_classes")
-    private List<String> licenseClasses;
+    @Field(name = "driving_license_classes")
+    private Set<String> drivingLicenseClasses = new HashSet<>();
 
     public ObjectId getId() {
         return id;
@@ -82,20 +83,27 @@ public class CustomerEntity {
         this.dateOfBirth = dateOfBirth;
     }
 
-    public List<String> getLicenseClasses() {
-        return licenseClasses;
+    public Set<String> getDrivingLicenseClasses() {
+        return drivingLicenseClasses;
     }
 
-    public void setLicenseClasses(List<String> licenseClasses) {
-        this.licenseClasses = licenseClasses;
+    public void setDrivingLicenseClasses(Set<String> drivingLicenseClasses) {
+        this.drivingLicenseClasses = drivingLicenseClasses != null ? drivingLicenseClasses : new HashSet<>();
     }
 
     @Override
     public String toString() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        return "Customer [contact=" + contact + ", customerNo=" + customerNo + ", dateOfBirth=" + sdf.format(dateOfBirth)
-                + ", firstName=" + firstName + ", gender=" + gender + ", lastName=" + lastName + ", objectId="
-                + id + "]";
+        return "Customer ["
+                + "contact=" + contact
+                + ", customerNo=" + customerNo
+                + ", dateOfBirth=" + sdf.format(dateOfBirth)
+                + ", firstName=" + firstName
+                + ", gender=" + gender
+                + ", lastName=" + lastName
+                + ", drivingLicenseClasses=" + drivingLicenseClasses
+                + ", objectId=" + id
+                + "]";
     }
 
 }

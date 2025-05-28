@@ -31,32 +31,32 @@ public class CarView extends VerticalLayout {
     private CarReservationForm form;
 
     private DataProvider<CarModelEntity, CarFilter> dp = DataProvider.fromFilteringCallbacks(
-            query -> {
-                CarFilter filter = query.getFilter().orElse(new CarFilter());
-                return carModelDao.findAll().stream()
-                        .filter(car -> filter.searchText.isEmpty() ||
+        query -> {
+            CarFilter filter = query.getFilter().orElse(new CarFilter());
+            return carModelDao.findAll().stream()
+                    .filter(car -> filter.searchText.isEmpty() ||
+                            car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase()) ||
+                            car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
+                    .filter(car -> filter.selectedAutoart == null ||
+                            car.getAutoart().equals(filter.selectedAutoart))
+                    .filter(car -> filter.sitzplaetze == null ||
+                            car.getSitzplaetze().equals(filter.sitzplaetze))
+                    .filter(car -> filter.treibstoff.isEmpty() ||
+                            car.getTreibstoff().equalsIgnoreCase(filter.treibstoff));
+        },
+        query -> (int) carModelDao.findAll().stream()
+                .filter(car -> query.getFilter().map(filter ->
+                        (filter.searchText.isEmpty() ||
                                 car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase()) ||
                                 car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
-                        .filter(car -> filter.selectedAutoart == null ||
-                                car.getAutoart().equals(filter.selectedAutoart))
-                        .filter(car -> filter.sitzplaetze == null ||
-                                car.getSitzplaetze().equals(filter.sitzplaetze))
-                        .filter(car -> filter.treibstoff.isEmpty() ||
-                                car.getTreibstoff().equalsIgnoreCase(filter.treibstoff));
-            },
-            query -> (int) carModelDao.findAll().stream()
-                    .filter(car -> query.getFilter().map(filter ->
-                            (filter.searchText.isEmpty() ||
-                                    car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase()) ||
-                                    car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
-                                    &&
-                                    (filter.selectedAutoart == null || car.getAutoart().equals(filter.selectedAutoart))
-                                    &&
-                                    (filter.sitzplaetze == null || car.getSitzplaetze().equals(filter.sitzplaetze))
-                                    &&
-                                    (filter.treibstoff.isEmpty() || car.getTreibstoff().equalsIgnoreCase(filter.treibstoff))
-                    ).orElse(true))
-                    .count()
+                                &&
+                                (filter.selectedAutoart == null || car.getAutoart().equals(filter.selectedAutoart))
+                                &&
+                                (filter.sitzplaetze == null || car.getSitzplaetze().equals(filter.sitzplaetze))
+                                &&
+                                (filter.treibstoff.isEmpty() || car.getTreibstoff().equalsIgnoreCase(filter.treibstoff))
+                ).orElse(true))
+                .count()
     );
 
     private ConfigurableFilterDataProvider<CarModelEntity, Void, CarFilter> configurableFilterDataProvider =
@@ -139,7 +139,6 @@ public class CarView extends VerticalLayout {
             CarModelEntity selectedCarModel = e.getItem();
             if (selectedCarModel != null) {
                 form = new CarReservationForm(reservationDao, carDao, customerDao);
-                add(form);
                 form.openDialog(selectedCarModel);
             }
         });

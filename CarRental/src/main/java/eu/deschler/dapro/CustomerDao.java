@@ -6,10 +6,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Component
 public class CustomerDao {
@@ -65,9 +65,22 @@ public class CustomerDao {
 
     }
 
+    CustomerEntity findByCustomerNo(Integer customerNo) {
+        Optional<CustomerEntity> customerOptional = customerRepository.findByCustomerNo(customerNo);
+        return customerOptional.orElse(null);
+    }
+
     void deleteCustomer(CustomerEntity c) {
         customerRepository.delete(c);
     }
+
+    void updateCustomer(CustomerEntity c) {
+        if (c.getCustomerNo() == null) {
+            c.setCustomerNo(generateNextCustomerNo());
+        }
+        customerRepository.save(c);
+    }
+
     private Integer generateNextCustomerNo() {
         List<CustomerEntity> allCustomers = StreamSupport.stream(customerRepository.findAll().spliterator(), false)
                 .collect(Collectors.toList());
@@ -80,23 +93,11 @@ public class CustomerDao {
                 .orElse(1); // Start with 1000 if no customers exist
     }
 
-    void updateCustomer(CustomerEntity c) {
-        if (c.getCustomerNo() == null) {
-            c.setCustomerNo(generateNextCustomerNo());
-        }
-        customerRepository.save(c);
-    }
-
     public String getFilter() {
         return filter;
     }
 
     public void setFilter(String filter) {
         this.filter = filter;
-    }
-
-    CustomerEntity findByCustomerNo(Integer customerNo) {
-        Optional<CustomerEntity> customerOptional = customerRepository.findByCustomerNo(customerNo);
-        return customerOptional.orElse(null);
     }
 }
