@@ -9,62 +9,52 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.Binder;
 
-public class CustomerForm extends FormLayout{
+public class CustomerForm extends FormLayout {
     private static final long serialVersionUID = 1L;
-
-    private final CustomerView customerView;
 
     private final TextField firstName = new TextField("Vorname");
     private final TextField lastName = new TextField("Name");
     private final DatePicker dateOfBirth = new DatePicker("Geburtsdatum");
     private final CheckboxGroup<String> driverLicenseClasses = new CheckboxGroup<>();
-    private final Button save = new Button("Speichern");
-    private final Button delete = new Button("Löschen");
+    private final Button save = new Button("Speichern", e -> save());
+    private final Button delete = new Button("Löschen", e -> delete());
+    private final HorizontalLayout buttons = new HorizontalLayout(save, delete);
 
     private final Binder<CustomerEntity> binder = new Binder<>(CustomerEntity.class);
-
+    private final CustomerView customerView;
     private final CustomerDao dao;
 
+
     public CustomerForm(CustomerView customerView, CustomerDao dao) {
-        // status.setItems(CustomerStatus.values());
         this.customerView = customerView;
         this.dao = dao;
         driverLicenseClasses.setLabel("Führerscheinklassen");
         driverLicenseClasses.setItems("A", "B", "C", "D");
         HorizontalLayout buttons = new HorizontalLayout(save, delete);
+
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         add(firstName, lastName, dateOfBirth, driverLicenseClasses, buttons);
 
+        binder.bindInstanceFields(this);
         binder.forField(driverLicenseClasses)
                 .bind(CustomerEntity::getDrivingLicenseClasses, CustomerEntity::setDrivingLicenseClasses);
-        binder.bindInstanceFields(this);
-        save.addClickListener(event -> save());
-        delete.addClickListener(event -> delete());
     }
 
-    public void setCustomer(CustomerEntity customerEntity) {
-        binder.setBean(customerEntity);
-
-        if (customerEntity == null) {
-            setVisible(false);
-        } else {
-            setVisible(true);
-            firstName.focus();
-        }
+    public void setCustomer(CustomerEntity customer) {
+        binder.setBean(customer);
+        setVisible(customer != null);
+        if (customer != null) firstName.focus();
     }
 
     private void save() {
-        CustomerEntity customerEntity = binder.getBean();
-        dao.updateCustomer(customerEntity);
+        dao.updateCustomer(binder.getBean());
         customerView.updateList(null);
         setCustomer(null);
     }
 
     private void delete() {
-        CustomerEntity customerEntity = binder.getBean();
-        dao.deleteCustomer(customerEntity);
+        dao.deleteCustomer(binder.getBean());
         customerView.updateList(null);
         setCustomer(null);
     }
-
 }
