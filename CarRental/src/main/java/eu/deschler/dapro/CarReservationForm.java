@@ -21,115 +21,99 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-public class CarReservationForm  extends FormLayout {
+public class CarReservationForm extends FormLayout {
 
     private static final Logger log = LoggerFactory.getLogger(CarReservationForm.class);
-    private final Dialog dialog;
+
     private final ReservationDao reservationDao;
     private final CarDao carDao;
     private final CustomerDao customerDao;
 
-    private Label label;
+    private final Dialog dialog = new Dialog();
+    private final Label label = new Label();
+
     private CarModelEntity carModel;
     private ReservationEntity reservation;
 
-    private Dialog errorDialog;
-    private Dialog successDialog;
-
-    public boolean isReservationPossible(CarModelEntity carModel, Integer kundenNummer, LocalDateTime begin, LocalDateTime end) throws FieldsNotFilledException, CustomerNotFoundException, DriverLicenseNotValidException {
-
-        if (carModel == null || kundenNummer == null || begin == null || end == null) {
-            throw new FieldsNotFilledException("Eingabe unvollständig: Alle Felder müssen ausgefüllt sein.");
-        }
-
-        CustomerEntity customer = customerDao.findByCustomerNo(kundenNummer);
-        if (customer == null) {
-            throw new CustomerNotFoundException("Kunde nicht gefunden.");
-        }
-
-        Set<String> licenses = customer.getDrivingLicenseClasses();
-        String requiredLicense = carModel.getFuehrerschein();
-        if (requiredLicense == null || !licenses.contains(requiredLicense)) {
-            throw new DriverLicenseNotValidException("Führerschein nicht gültig für dieses Modell.");
-        }
-
-        int availableCars = carDao.countByModell(carModel.getId());
-
-        List<ReservationEntity> existingReservations = reservationDao.findByIdAndTimeRange(carModel.getId(), begin, end);
-
-        log.info("Anzahl der verfügbaren Autos: {}", availableCars);
-        log.info("Anzahl der vorhandenen Reservierungen: {}", existingReservations.size());
-
-        return availableCars > existingReservations.size();
-    }
-
     public CarReservationForm(ReservationDao reservationDao, CarDao carDao, CustomerDao customerDao) {
-        dialog = new Dialog();
-        label = new Label();
         this.reservationDao = reservationDao;
         this.carDao = carDao;
         this.customerDao = customerDao;
 
-        DatePicker startDatumPicker = new DatePicker("Startdatum", e -> {
-            LocalDateTime startDate = e.getValue().atStartOfDay();
-            reservation.setBeginn(startDate);
-        });
-        DatePicker endDatumPicker = new DatePicker("Enddatum", e -> {
-            LocalDateTime endDate = e.getValue().atTime(23, 59, 59);
-            reservation.setEnde(endDate);
-        });
-        NumberField kundenNummerField = new NumberField("Kundennummer", e -> {
-            int kundeId = e.getValue().intValue();
-            reservation.setKundeID(kundeId);
-        });
-        Button reservierenButton = new Button("Reservieren", e -> {
-            try {
-                if (isReservationPossible(carModel, reservation.getKundeID(), reservation.getBeginn(), reservation.getEnde())) {
-                    this.reservationDao.add(reservation);
-                    dialog.close();
-                    openSuccessDialog("Die Reservierung wurde erfolgreich abgeschlossen.");
-                } else {
-                    dialog.close();
-                    openErrorDialog("Es ist leider keine Reservierung für '" + carModel.getBezeichnung() +
-                            "' im angegebenen Zeitraum möglich.");
-                }
-            } catch (FieldsNotFilledException fnfe) {
-                openErrorDialog("Bitte füllen Sie alle Felder aus.");
-                log.error(fnfe.getMessage());
-            } catch (CustomerNotFoundException cnfe) {
-                openErrorDialog("Es wurde kein Kunde mit der angegebenen Kundennummer gefunden.");
-                log.error(cnfe.getMessage());
-            } catch (DriverLicenseNotValidException dlnve) {
-                openErrorDialog("Der angegebene Kunde besitzt nicht den erforderlichen Führerschein.");
-                log.error(dlnve.getMessage());
-            }
+        DatePicker startDatumPicker = new DatePicker("Startdatum");
+        DatePicker endDatumPicker = new DatePicker("Enddatum");
+        NumberField kundenNummerField = new NumberField("Kundennummer");
+
+        startDatumPicker.addValueChangeListener(e -> {
+            if (reservation != null && e.getValue() != null)
+                reservation.setBeginn(e.getValue().atStartOfDay());
         });
 
-        VerticalLayout dialogContent = new VerticalLayout(label, startDatumPicker, endDatumPicker, kundenNummerField, reservierenButton);
-        dialog.add(dialogContent);
+        endDatumPicker.addValueChangeListener(e -> {
+            if (reservation != null && e.getValue() != null)
+                reservation.setEnde(e.getValue().atTime(23, 59, 59));
+        });
+
+        kundenNummerField.addValueChangeListener(e -> {
+            if (reservation != null && e.getValue() != null)
+                reservation.setKundeID(e.getValue().intValue());
+        });
+
+        Button reservierenButton = new Button("Reservieren", e -> handleReservation());
+
+        dialog.add(new VerticalLayout(label, startDatumPicker, endDatumPicker, kundenNummerField, reservierenButton));
     }
 
     public void openDialog(CarModelEntity selectedCarModel) {
-        dialog.open();
         reservation = new ReservationEntity();
-        reservation.setModellID(selectedCarModel.getId());
         carModel = selectedCarModel;
-        label.setText(carModel.getBezeichnung());
+        reservation.setModellID(carModel.getId());
+        label.setText("Reservierung für: " + carModel.getBezeichnung());
+        dialog.open();
     }
 
-    public void openErrorDialog(String message) {
-        errorDialog = new Dialog();
-        errorDialog.open();
-        Label errorLabel = new Label(message);
-        VerticalLayout dialogContent = new VerticalLayout(errorLabel);
-        errorDialog.add(dialogContent);
+    private void handleReservation() {
+        try {
+            if (isReservationPossible(carModel, reservation.getKundeID(), reservation.getBeginn(), reservation.getEnde())) {
+                reservationDao.add(reservation);
+                dialog.close();
+                showDialog("Erfolg", "Die Reservierung wurde erfolgreich abgeschlossen.");
+            } else {
+                dialog.close();
+                showDialog("Nicht möglich", "Keine Reservierung für '" + carModel.getBezeichnung() + "' im gewählten Zeitraum möglich.");
+            }
+        } catch (FieldsNotFilledException | CustomerNotFoundException | DriverLicenseNotValidException ex) {
+            log.error(ex.getMessage(), ex);
+            showDialog("Fehler", ex.getMessage());
+        }
     }
 
-    public void openSuccessDialog(String message) {
-        successDialog = new Dialog();
-        successDialog.open();
-        Label successLabel = new Label(message);
-        VerticalLayout dialogContent = new VerticalLayout(successLabel);
-        successDialog.add(dialogContent);
+    private boolean isReservationPossible(CarModelEntity model, Integer kundenNummer, LocalDateTime begin, LocalDateTime end)
+            throws FieldsNotFilledException, CustomerNotFoundException, DriverLicenseNotValidException {
+
+        if (model == null || kundenNummer == null || begin == null || end == null)
+            throw new FieldsNotFilledException("Bitte füllen Sie alle Felder aus.");
+
+        CustomerEntity customer = customerDao.findByCustomerNo(kundenNummer);
+        if (customer == null)
+            throw new CustomerNotFoundException("Kunde nicht gefunden.");
+
+        String requiredLicense = model.getFuehrerschein();
+        Set<String> licenses = customer.getDrivingLicenseClasses();
+
+        if (requiredLicense == null || !licenses.contains(requiredLicense))
+            throw new DriverLicenseNotValidException("Führerschein nicht gültig für dieses Modell.");
+
+        int available = carDao.countByModell(model.getId());
+        int reserved = reservationDao.findByIdAndTimeRange(model.getId(), begin, end).size();
+
+        log.info("Verfügbare Fahrzeuge: {}, Bereits reserviert: {}", available, reserved);
+        return available > reserved;
+    }
+
+    private void showDialog(String title, String message) {
+        Dialog infoDialog = new Dialog();
+        infoDialog.add(new VerticalLayout(new Label(title), new Label(message)));
+        infoDialog.open();
     }
 }
