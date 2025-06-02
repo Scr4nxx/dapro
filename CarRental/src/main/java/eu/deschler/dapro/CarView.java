@@ -15,138 +15,132 @@ import eu.deschler.dapro.Carmodel.CarModelDao;
 import eu.deschler.dapro.Carmodel.CarModelEntity;
 import eu.deschler.dapro.Reservation.ReservationDao;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class CarView extends VerticalLayout {
-    private static final long serialVersionUID = -5150635303857129026L;
 
-    private CarModelDao carModelDao;
-    private CarTypeDao carTypeDao;
-    private Map<Integer, String> autoartMap;
-    private CarFilter carFilter;
-    private Grid<CarModelEntity> grid;
-    private CarReservationForm form;
-
-    private DataProvider<CarModelEntity, CarFilter> dp = DataProvider.fromFilteringCallbacks(
-        query -> {
-            CarFilter filter = query.getFilter().orElse(new CarFilter());
-            return carModelDao.findAll().stream()
-                    .filter(car -> filter.searchText.isEmpty() ||
-                            car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase()) ||
-                            car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
-                    .filter(car -> filter.selectedAutoart == null ||
-                            car.getAutoart().equals(filter.selectedAutoart))
-                    .filter(car -> filter.sitzplaetze == null ||
-                            car.getSitzplaetze().equals(filter.sitzplaetze))
-                    .filter(car -> filter.treibstoff.isEmpty() ||
-                            car.getTreibstoff().equalsIgnoreCase(filter.treibstoff));
-        },
-        query -> (int) carModelDao.findAll().stream()
-                .filter(car -> query.getFilter().map(filter ->
-                        (filter.searchText.isEmpty() ||
-                                car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase()) ||
-                                car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
-                                &&
-                                (filter.selectedAutoart == null || car.getAutoart().equals(filter.selectedAutoart))
-                                &&
-                                (filter.sitzplaetze == null || car.getSitzplaetze().equals(filter.sitzplaetze))
-                                &&
-                                (filter.treibstoff.isEmpty() || car.getTreibstoff().equalsIgnoreCase(filter.treibstoff))
-                ).orElse(true))
-                .count()
-    );
-
-    private ConfigurableFilterDataProvider<CarModelEntity, Void, CarFilter> configurableFilterDataProvider =
-            dp.withConfigurableFilter();
+    private final CarModelDao carModelDao;
+    private final Map<Integer, String> autoartMap;
+    private final CarFilter carFilter = new CarFilter();
+    private final Grid<CarModelEntity> grid = new Grid<>();
+    private final ConfigurableFilterDataProvider<CarModelEntity, Void, CarFilter> filterProvider;
 
     public CarView(CarModelDao carModelDao, CarTypeDao carTypeDao, ReservationDao reservationDao, CarDao carDao, CustomerDao customerDao) {
         this.carModelDao = carModelDao;
-        this.carTypeDao = carTypeDao;
-        autoartMap = this.carTypeDao.findAll().stream()
+
+        autoartMap = carTypeDao.findAll().stream()
                 .collect(Collectors.toMap(CarTypeEntity::getId, CarTypeEntity::getArt));
-        this.grid = new Grid<>();
-        this.carFilter = new CarFilter();
+        // Datenquelle mit Filter
+        DataProvider<CarModelEntity, CarFilter> dataProvider = DataProvider.fromFilteringCallbacks(
+                (query) -> carModelDao.findAll().stream()
+                        .filter(car -> matchesFilter(car, query.getFilter().orElse(new CarFilter()))),
+                (query) -> (int) carModelDao.findAll().stream()
+                        .filter(car -> matchesFilter(car, query.getFilter().orElse(new CarFilter()))).count()
+        );
 
-        configurableFilterDataProvider.setFilter(carFilter);
+        this.filterProvider = dataProvider.withConfigurableFilter();
+        filterProvider.setFilter(carFilter);
 
-        TextField searchField = new TextField("Bezeichnung oder Hersteller");
+        // UI
+        HorizontalLayout filterBar = createFilterBar();
+        setupGrid(reservationDao, carDao, customerDao);
+
+        add(filterBar, grid);
+        setSizeFull();
+    }
+
+    private boolean matchesFilter(CarModelEntity car, CarFilter filter) {
+        return (filter.searchText.isEmpty() || car.getBezeichnung().toLowerCase().contains(filter.searchText.toLowerCase())
+                || car.getHersteller().toLowerCase().contains(filter.searchText.toLowerCase()))
+                && (filter.selectedAutoart == null || car.getAutoart().equals(filter.selectedAutoart))
+                && (filter.sitzplaetze == null || Objects.equals(car.getSitzplaetze(), filter.sitzplaetze))
+                && (filter.treibstoff.isEmpty() || filter.treibstoff.equalsIgnoreCase(car.getTreibstoff()));
+    }
+
+    private HorizontalLayout createFilterBar() {
+        // Textsuche
+        TextField searchField = new TextField("Bezeichnung / Hersteller");
         searchField.setPlaceholder("Suche...");
+        searchField.addValueChangeListener(e -> {
+            carFilter.searchText = e.getValue().trim().toLowerCase();
+            refresh();
+        });
 
-        List<String> autoartOptions = new ArrayList<>();
-        autoartOptions.add("Alle");
-        autoartOptions.addAll(autoartMap.values());
-
+        // Autoart-Filter
         ComboBox<String> autoartFilter = new ComboBox<>("Autoart");
-        autoartFilter.setItems(autoartOptions);
+        autoartFilter.setItems(getAutoartOptions());
         autoartFilter.setValue("Alle");
+        autoartFilter.addValueChangeListener(e -> {
+            carFilter.selectedAutoart = "Alle".equals(e.getValue()) ? null :
+                    autoartMap.entrySet().stream()
+                            .filter(entry -> entry.getValue().equals(e.getValue()))
+                            .map(Map.Entry::getKey)
+                            .findFirst().orElse(null);
+            refresh();
+        });
 
+        // Sitzplätze
         NumberField sitzplaetzeFilter = new NumberField("Sitzplätze");
+        sitzplaetzeFilter.setStep(1);
+        sitzplaetzeFilter.addValueChangeListener(e -> {
+            carFilter.sitzplaetze = e.getValue() == null ? null : e.getValue().intValue();
+            refresh();
+        });
+
+        // Treibstoff
         ComboBox<String> treibstoffFilter = new ComboBox<>("Treibstoff");
         List<String> treibstoffOptions = carModelDao.findAll().stream()
                 .map(CarModelEntity::getTreibstoff)
-                .filter(t -> t != null && !t.isEmpty()) // Filtert NULL und leere Werte raus
-                .distinct() // Entfernt doppelte Einträge
-                .sorted(String::compareTo) // Sortiert alphabetisch
+                .filter(s -> s != null && !s.isEmpty())
+                .distinct()
+                .sorted()
                 .collect(Collectors.toList());
-        treibstoffOptions.add(0, "Alle"); // Fügt "Alle" als erste Option hinzu
+        treibstoffOptions.add(0, "Alle");
         treibstoffFilter.setItems(treibstoffOptions);
         treibstoffFilter.setValue("Alle");
-        searchField.addValueChangeListener(event -> {
-            carFilter.searchText = event.getValue().trim().toLowerCase();
-            configurableFilterDataProvider.refreshAll();
+        treibstoffFilter.addValueChangeListener(e -> {
+            carFilter.treibstoff = "Alle".equals(e.getValue()) ? "" : e.getValue();
+            refresh();
         });
 
-        autoartFilter.addValueChangeListener(event -> {
-            String selectedArt = event.getValue();
-            carFilter.selectedAutoart = "Alle".equals(selectedArt) ? null :
-                    autoartMap.entrySet().stream()
-                            .filter(entry -> entry.getValue().equals(selectedArt))
-                            .map(Map.Entry::getKey)
-                            .findFirst()
-                            .orElse(null);
-            configurableFilterDataProvider.refreshAll();
-        });
+        return new HorizontalLayout(searchField, autoartFilter, sitzplaetzeFilter, treibstoffFilter);
+    }
 
-        sitzplaetzeFilter.addValueChangeListener(event -> {
-            carFilter.sitzplaetze = event.getValue() == null ? null : event.getValue().intValue();
-            configurableFilterDataProvider.refreshAll();
-        });
+    private List<String> getAutoartOptions() {
+        List<String> options = new ArrayList<>();
+        options.add("Alle");
+        options.addAll(autoartMap.values());
+        return options;
+    }
 
-        treibstoffFilter.addValueChangeListener(event -> {
-            carFilter.treibstoff = "Alle".equals(event.getValue()) ? "" : event.getValue();
-            configurableFilterDataProvider.refreshAll();
-        });
-
-        grid.setDataProvider(configurableFilterDataProvider);
+    private void setupGrid(ReservationDao reservationDao, CarDao carDao, CustomerDao customerDao) {
+        grid.setDataProvider(filterProvider);
+        grid.setWidthFull();
 
         grid.addColumn(CarModelEntity::getId).setHeader("Id");
         grid.addColumn(CarModelEntity::getBezeichnung).setHeader("Bezeichnung");
         grid.addColumn(CarModelEntity::getHersteller).setHeader("Hersteller");
         grid.addColumn(CarModelEntity::getAutoartBezeichnung).setHeader("Autoart");
-        grid.addColumn(CarModelEntity::getSitzplaetze).setHeader("Anzahl Sitzplätze");
-        grid.addColumn(CarModelEntity::getKw).setHeader("Leistung in kW");
-        grid.addColumn(CarModelEntity::getTreibstoff).setHeader("Treibstoffart");
-        grid.addColumn(CarModelEntity::getPreisTag).setHeader("Preis pro Tag");
-        grid.addColumn(CarModelEntity::getPreisKM).setHeader("Preis pro Kilometer");
-        grid.addColumn(CarModelEntity::getAchsen).setHeader("Anzahl Achsen");
+        grid.addColumn(CarModelEntity::getSitzplaetze).setHeader("Sitzplätze");
+        grid.addColumn(CarModelEntity::getKw).setHeader("kW");
+        grid.addColumn(CarModelEntity::getTreibstoff).setHeader("Treibstoff");
+        grid.addColumn(CarModelEntity::getPreisTag).setHeader("Preis/Tag");
+        grid.addColumn(CarModelEntity::getPreisKM).setHeader("Preis/KM");
+        grid.addColumn(CarModelEntity::getAchsen).setHeader("Achsen");
         grid.addColumn(CarModelEntity::getLadevolumen).setHeader("Ladevolumen");
         grid.addColumn(CarModelEntity::getZuladung).setHeader("Zuladung");
-        grid.addColumn(CarModelEntity::getFuehrerschein).setHeader("erforderlicher Führerschein");
-        grid.addItemClickListener(e -> {
-            CarModelEntity selectedCarModel = e.getItem();
-            if (selectedCarModel != null) {
-                form = new CarReservationForm(reservationDao, carDao, customerDao);
-                form.openDialog(selectedCarModel);
-            }
-        });
+        grid.addColumn(CarModelEntity::getFuehrerschein).setHeader("Führerschein");
 
-        HorizontalLayout filterContent = new HorizontalLayout(searchField, autoartFilter, sitzplaetzeFilter, treibstoffFilter);
-        HorizontalLayout mainContent = new HorizontalLayout(grid);
-        mainContent.setSizeFull();
-        grid.setWidthFull();
-        add(filterContent, mainContent);
+        grid.addItemClickListener(e -> {
+            CarReservationForm form = new CarReservationForm(reservationDao, carDao, customerDao);
+            form.openDialog(e.getItem());
+        });
     }
+
+    private void refresh() {
+        filterProvider.refreshAll();
+    }
+
 }
